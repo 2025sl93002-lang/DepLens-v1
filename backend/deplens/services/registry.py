@@ -17,6 +17,8 @@ from typing import Dict, List, Optional
 import httpx
 
 DEFAULT_REGISTRY = "https://registry.npmjs.org"
+# Weekly download counts live on a separate host, not the registry doc itself.
+DOWNLOADS_API = "https://api.npmjs.org"
 USER_AGENT = "DepLens/0.1 (+https://github.com/deplens/deplens)"
 REQUEST_TIMEOUT = 15.0
 MAX_CONCURRENCY = 8
@@ -36,6 +38,8 @@ class RegistryInfo:
     # publish timestamps keyed by version (ISO 8601 strings)
     version_times: Dict[str, str] = field(default_factory=dict)
     modified: Optional[str] = None
+    # weekly download count from the npm downloads API; None when unavailable
+    weekly_downloads: Optional[int] = None
     error: Optional[str] = None
 
 
@@ -90,6 +94,9 @@ class RegistryClient:
         if name in self._cache:
             return self._cache[name]
         info = await self._fetch(name)
+        # Best-effort popularity signal; only meaningful for packages that exist.
+        if info.available:
+            info.weekly_downloads = await self._fetch_downloads(name)
         self._cache[name] = info
         return info
 
@@ -132,6 +139,29 @@ class RegistryClient:
             version_times=version_times,
             modified=times.get("modified"),
         )
+
+    async def _fetch_downloads(self, name: str) -> Optional[int]:
+        """Fetch the last-week download count from the npm downloads API.
+
+        This hits ``api.npmjs.org`` — a different host than the registry — reusing
+        the same shared client. Returns ``None`` on any failure: the endpoint does
+        not serve scoped packages (``@scope/pkg`` → 404), and this is a best-effort
+        popularity signal that must never raise or abort a scan.
+        """
+        encoded = name.replace("/", "%2F")
+        url = f"{DOWNLOADS_API}/downloads/point/last-week/{encoded}"
+        try:
+            resp = await self._client.get(url)
+        except httpx.HTTPError:
+            return None
+        if resp.status_code != 200:
+            return None
+        try:
+            doc = resp.json()
+        except ValueError:
+            return None
+        downloads = doc.get("downloads")
+        return downloads if isinstance(downloads, int) else None
 
     async def get_many(self, names: List[str]) -> Dict[str, RegistryInfo]:
         sem = asyncio.Semaphore(MAX_CONCURRENCY)

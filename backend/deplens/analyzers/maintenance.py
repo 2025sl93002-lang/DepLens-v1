@@ -31,6 +31,7 @@ class MaintenanceResult:
     deprecated: bool
     deprecation_message: Optional[str]
     repository: Optional[str]
+    weekly_downloads: Optional[int]
     signals: List[str]
 
 
@@ -55,6 +56,7 @@ def analyze_maintenance(
             deprecated=False,
             deprecation_message=None,
             repository=None,
+            weekly_downloads=None,
             signals=["No registry data available (offline or package not found)."],
         )
 
@@ -75,6 +77,9 @@ def analyze_maintenance(
     release_count = len(info.version_times) or None
     if release_count:
         signals.append(f"{release_count} published versions on the registry.")
+
+    if info.weekly_downloads is not None:
+        signals.append(f"{info.weekly_downloads:,} downloads last week (npm).")
 
     deprecated = bool(info.deprecated)
     if deprecated:
@@ -104,5 +109,6 @@ def analyze_maintenance(
         deprecated=deprecated,
         deprecation_message=info.deprecated,
         repository=info.repository,
+        weekly_downloads=info.weekly_downloads,
         signals=signals,
     )

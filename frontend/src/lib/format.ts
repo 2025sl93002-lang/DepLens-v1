@@ -36,3 +36,8 @@ export function formatDate(epochSeconds: number | null | undefined): string {
 export function titleCase(s: string): string {
   return s.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+export function formatNumber(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "unknown";
+  return n.toLocaleString();
+}

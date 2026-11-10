@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FolderGit2, Plus, Trash2 } from "lucide-react";
+import { FolderGit2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "../api/client";
 import { useApp } from "../state/app";
 import { Badge, Button, Card, EmptyState, useToast } from "../components/ui";
@@ -11,6 +11,7 @@ import { gradeTone } from "../lib/badges";
 export function Projects() {
   const { projects, setCurrentProject, setCurrentScan, refreshProjects, currentProjectId } = useApp();
   const [scanOpen, setScanOpen] = useState(false);
+  const [rescanPath, setRescanPath] = useState<string | undefined>();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -76,9 +77,21 @@ export function Projects() {
                 >
                   Open
                 </Button>
-                <Button size="sm" variant="danger" icon onClick={() => remove(p.id, p.name)} aria-label="Remove">
-                  <Trash2 size={15} />
-                </Button>
+                <div className="row" style={{ gap: 4 }}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon
+                    title="Re-scan this project"
+                    onClick={() => { setRescanPath(p.path); setScanOpen(true); }}
+                    aria-label="Re-scan"
+                  >
+                    <RefreshCw size={15} />
+                  </Button>
+                  <Button size="sm" variant="danger" icon onClick={() => remove(p.id, p.name)} aria-label="Remove">
+                    <Trash2 size={15} />
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}
@@ -87,12 +100,14 @@ export function Projects() {
 
       {scanOpen && (
         <ScanModal
-          onClose={() => setScanOpen(false)}
+          initialPath={rescanPath}
+          onClose={() => { setScanOpen(false); setRescanPath(undefined); }}
           onDone={async (scanId, projectId) => {
             await refreshProjects();
             setCurrentProject(projectId);
             setCurrentScan(scanId);
             setScanOpen(false);
+            setRescanPath(undefined);
             navigate("/");
           }}
         />

@@ -6,6 +6,7 @@ import {
   Download,
   GitFork,
   PackageX,
+  RefreshCw,
   Scale,
   ShieldAlert,
 } from "lucide-react";
@@ -19,11 +20,13 @@ import { gradeTone } from "../lib/badges";
 import { formatDate, titleCase } from "../lib/format";
 import { useState } from "react";
 import { PackageDrawer } from "../components/PackageDrawer";
+import { ScanModal } from "../components/ScanModal";
 
 export function Overview() {
-  const { currentScanId } = useApp();
+  const { currentScanId, setCurrentProject, setCurrentScan, refreshProjects } = useApp();
   const navigate = useNavigate();
   const [pkg, setPkg] = useState<string | null>(null);
+  const [rescan, setRescan] = useState(false);
   const { data, loading, error } = useAsync(
     () => (currentScanId ? api.scanDetail(currentScanId) : Promise.resolve(null)),
     [currentScanId],
@@ -71,11 +74,27 @@ export function Overview() {
         <div className="row">
           <Badge tone={data.online ? "info" : "neutral"}>{data.online ? "Online scan" : "Offline scan"}</Badge>
           <span className="muted" style={{ fontSize: "var(--text-sm)" }}>{formatDate(data.created_at)}</span>
+          <Button variant="ghost" onClick={() => setRescan(true)} title="Re-scan this project">
+            <RefreshCw size={16} /> Re-scan
+          </Button>
           <Button onClick={() => navigate("/reports")}>
             <Download size={16} /> Export
           </Button>
         </div>
       </div>
+
+      {rescan && (
+        <ScanModal
+          initialPath={data.project.path}
+          onClose={() => setRescan(false)}
+          onDone={async (scanId, projectId) => {
+            await refreshProjects();
+            setCurrentProject(projectId);
+            setCurrentScan(scanId);
+            setRescan(false);
+          }}
+        />
+      )}
 
       <div className="grid-3" style={{ gridTemplateColumns: "340px 1fr", alignItems: "stretch" }}>
         <HealthCard score={data.health_score} grade={data.health_grade} confidence={data.health_confidence} factors={health.factors} notes={health.notes} />

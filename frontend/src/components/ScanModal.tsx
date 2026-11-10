@@ -33,11 +33,13 @@ function StageIcon({ status }: { status: Stage["status"] }) {
 export function ScanModal({
   onClose,
   onDone,
+  initialPath,
 }: {
   onClose: () => void;
   onDone: (scanId: number, projectId: number) => void;
+  initialPath?: string;
 }) {
-  const [path, setPath] = useState("");
+  const [path, setPath] = useState(initialPath ?? "");
   const [online, setOnline] = useState(true);
   const [running, setRunning] = useState(false);
   const [stages, setStages] = useState<Stage[] | null>(null);
@@ -46,8 +48,10 @@ export function ScanModal({
   const timer = useRef<number>();
 
   useEffect(() => {
-    api.demoPath().then((d) => d.exists && setPath((p) => p || d.path)).catch(() => {});
-  }, []);
+    if (!initialPath) {
+      api.demoPath().then((d) => d.exists && setPath((p) => p || d.path)).catch(() => {});
+    }
+  }, [initialPath]);
 
   useEffect(() => {
     if (running) {
@@ -55,6 +59,11 @@ export function ScanModal({
     }
     return () => clearInterval(timer.current);
   }, [running]);
+
+  useEffect(() => {
+    if (initialPath) run();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function run() {
     if (!path.trim()) {

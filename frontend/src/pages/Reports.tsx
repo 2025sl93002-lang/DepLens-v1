@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, FileJson, FileText, Table } from "lucide-react";
+import { Download, FileJson, FileText, ShieldCheck, Table } from "lucide-react";
 import { api } from "../api/client";
 import { useApp } from "../state/app";
 import { useAsync } from "../hooks/useAsync";
@@ -27,9 +27,11 @@ export function Reports() {
   }
 
   const formats = [
-    { fmt: "markdown", label: "Markdown", icon: FileText, desc: "Human-readable report for reviews & PRs." },
-    { fmt: "json", label: "JSON", icon: FileJson, desc: "Full structured data for tooling." },
-    { fmt: "csv", label: "CSV", icon: Table, desc: "Dependency inventory for spreadsheets." },
+    { fmt: "markdown", label: "Markdown", icon: FileText, desc: "Human-readable report for reviews & PRs.", ext: "md" },
+    { fmt: "json", label: "JSON", icon: FileJson, desc: "Full structured data for tooling.", ext: "json" },
+    { fmt: "csv", label: "CSV", icon: Table, desc: "Dependency inventory for spreadsheets.", ext: "csv" },
+    { fmt: "cyclonedx", label: "CycloneDX", icon: ShieldCheck, desc: "CycloneDX 1.4 SBOM for supply-chain tooling.", ext: "cdx.json" },
+    { fmt: "spdx", label: "SPDX", icon: ShieldCheck, desc: "SPDX 2.3 SBOM for compliance & audits.", ext: "spdx.json" },
   ];
 
   return (
@@ -50,7 +52,7 @@ export function Reports() {
             </div>
             <p className="dim" style={{ fontSize: "var(--text-sm)", minHeight: 40 }}>{f.desc}</p>
             <a href={api.reportUrl(currentScanId, f.fmt)} download>
-              <Button variant="secondary" style={{ width: "100%" }}><Download size={15} /> Download .{f.fmt === "markdown" ? "md" : f.fmt}</Button>
+              <Button variant="secondary" style={{ width: "100%" }}><Download size={15} /> Download .{f.ext}</Button>
             </a>
           </Card>
         ))}

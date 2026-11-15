@@ -13,6 +13,7 @@ import type {
   RemediationPlan,
   ScanDetail,
   Settings,
+  TrendPoint,
   UsageResult,
   Vulnerability,
 } from "./types";
@@ -62,6 +63,9 @@ export const api = {
 
   projectScans: (id: number) =>
     request<{ scans: any[] }>(`/projects/${id}/scans`),
+
+  trend: (id: number) =>
+    request<{ trend: TrendPoint[] }>(`/projects/${id}/trend`),
 
   scanDetail: (id: number) => request<ScanDetail>(`/scans/${id}`),
 

@@ -83,3 +83,34 @@ def project_scans(project_id: int, db: Database = Depends(db_dep)):
             }
         )
     return {"scans": scans}
+
+
+@router.get("/projects/{project_id}/trend")
+def project_trend(project_id: int, db: Database = Depends(db_dep)):
+    """Chronological health timeline for a project's scans.
+
+    Returns one point per completed scan (those with a health score), oldest
+    first, so the frontend can plot a trend line directly.
+    """
+    if db.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    rows = db.query(
+        "SELECT id, created_at, health_score, health_grade, summary_json FROM scans "
+        "WHERE project_id=? AND health_score IS NOT NULL ORDER BY created_at ASC",
+        (project_id,),
+    )
+    trend = []
+    for r in rows:
+        summary = json.loads(r["summary_json"]) if r["summary_json"] else {}
+        trend.append(
+            {
+                "scan_id": r["id"],
+                "created_at": r["created_at"],
+                "health_score": r["health_score"],
+                "health_grade": r["health_grade"],
+                "vulnerable_packages": summary.get("vulnerable_packages"),
+                "outdated": summary.get("outdated"),
+                "total": summary.get("total"),
+            }
+        )
+    return {"trend": trend}

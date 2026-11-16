@@ -347,3 +347,100 @@ def render_spdx(data: Dict[str, Any]) -> str:
         "relationships": relationships,
     }
     return json.dumps(doc, indent=2)
+
+
+# --------------------------------------------------------------------------- #
+# SARIF 2.1.0 export (GitHub code-scanning)
+# --------------------------------------------------------------------------- #
+
+# DepLens severity -> SARIF result level.
+_SARIF_LEVEL = {
+    "critical": "error",
+    "high": "error",
+    "moderate": "warning",
+    "low": "note",
+    "unknown": "note",
+}
+# DepLens severity -> GitHub "security-severity" (CVSS-like 0-10) for grouping.
+_SARIF_SECURITY_SEVERITY = {
+    "critical": "9.5",
+    "high": "8.0",
+    "moderate": "5.5",
+    "low": "2.5",
+    "unknown": "0.0",
+}
+
+
+def render_sarif(data: Dict[str, Any]) -> str:
+    """Render a SARIF 2.1.0 report of the scan's vulnerabilities.
+
+    GitHub code scanning ingests this (via ``upload-sarif``) and renders findings
+    in the Security tab. One rule is emitted per unique advisory and one result
+    per vulnerable package instance. Findings are anchored to the lockfile, since
+    dependency advisories have no single source line.
+    """
+    artifact_uri = "package-lock.json"
+    rules: List[Dict[str, Any]] = []
+    rule_index: Dict[str, int] = {}
+    results: List[Dict[str, Any]] = []
+
+    for v in data["vulnerabilities"]:
+        adv_id = v.get("cve") or v["osv_id"]
+        sev = (v.get("severity") or "unknown").lower()
+        if adv_id not in rule_index:
+            rule_index[adv_id] = len(rules)
+            rules.append(
+                {
+                    "id": adv_id,
+                    "name": "VulnerableDependency",
+                    "shortDescription": {"text": (v.get("summary") or adv_id)[:120]},
+                    "fullDescription": {"text": v.get("summary") or f"Advisory {adv_id}"},
+                    "helpUri": v.get("url") or "https://osv.dev/",
+                    "properties": {
+                        "security-severity": _SARIF_SECURITY_SEVERITY.get(sev, "0.0"),
+                        "tags": ["security", "dependencies"],
+                    },
+                }
+            )
+        fixed = f" (fixed in {v['fixed_version']})" if v.get("fixed_version") else ""
+        results.append(
+            {
+                "ruleId": adv_id,
+                "ruleIndex": rule_index[adv_id],
+                "level": _SARIF_LEVEL.get(sev, "note"),
+                "message": {
+                    "text": f"{v['package']}@{v['installed_version']}: "
+                    f"{v.get('summary') or adv_id}{fixed}"
+                },
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": artifact_uri},
+                            "region": {"startLine": 1},
+                        }
+                    }
+                ],
+                "partialFingerprints": {
+                    "depLensVuln": f"{v['package']}@{v['installed_version']}:{adv_id}"
+                },
+            }
+        )
+
+    doc = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "DepLens",
+                        "informationUri": "https://github.com/deplens/deplens",
+                        "version": __version__,
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+    return json.dumps(doc, indent=2)

@@ -11,11 +11,29 @@ import argparse
 import asyncio
 import sys
 
+# Severity ranking for the --fail-on gate (higher = worse).
+_SEV_RANK = {"low": 1, "moderate": 2, "high": 3, "critical": 4}
+
 
 def _serve(args):
     import uvicorn
 
     uvicorn.run("deplens.main:app", host=args.host, port=args.port, reload=args.reload)
+
+
+def _fail_on_exit(db, scan_id: int, fail_on: str) -> None:
+    """Exit non-zero if any advisory meets/exceeds the --fail-on threshold."""
+    if not fail_on or fail_on == "none":
+        return
+    threshold = _SEV_RANK.get(fail_on, 99)
+    rows = db.query("SELECT severity FROM vulnerabilities WHERE scan_id=?", (scan_id,))
+    worst = max((_SEV_RANK.get((r["severity"] or "").lower(), 0) for r in rows), default=0)
+    if worst >= threshold:
+        print(
+            f"DepLens: found vulnerabilities at or above '{fail_on}' severity — failing build.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def _scan(args):
@@ -37,6 +55,23 @@ def _scan(args):
         data = build_report_data(db, scan_id)
         out = render_cyclonedx(data) if args.sbom == "cyclonedx" else render_spdx(data)
         print(out)
+        _fail_on_exit(db, scan_id, getattr(args, "fail_on", "none"))
+        return
+
+    if getattr(args, "sarif", False):
+        import json
+
+        from deplens.report import build_report_data, render_sarif
+
+        print(render_sarif(build_report_data(db, scan_id)))
+        summary = json.loads(scan["summary_json"]) if scan["summary_json"] else {}
+        print(
+            f"DepLens: health {scan['health_score']}/100 ({scan['health_grade']}), "
+            f"{summary.get('vulnerable_packages', 0)} vulnerable package(s), "
+            f"{summary.get('outdated', 0)} outdated",
+            file=sys.stderr,
+        )
+        _fail_on_exit(db, scan_id, getattr(args, "fail_on", "none"))
         return
 
     print(f"Scan #{scan_id} complete.")
@@ -51,6 +86,7 @@ def _scan(args):
     print(f"  Outdated: {summary['outdated']}  License warnings: {summary['license_warnings']}")
     print(f"  Potentially unused: {summary['potentially_unused']}")
     print("Run 'deplens serve' and open the UI to explore the full results.")
+    _fail_on_exit(db, scan_id, getattr(args, "fail_on", "none"))
 
 
 def main():
@@ -70,6 +106,17 @@ def main():
         "--sbom",
         choices=["cyclonedx", "spdx"],
         help="Emit an SBOM (CycloneDX 1.4 or SPDX 2.3 JSON) to stdout instead of a summary",
+    )
+    scan.add_argument(
+        "--sarif",
+        action="store_true",
+        help="Emit a SARIF 2.1.0 report to stdout (for GitHub code scanning)",
+    )
+    scan.add_argument(
+        "--fail-on",
+        choices=["none", "low", "moderate", "high", "critical"],
+        default="none",
+        help="Exit with code 1 if a vulnerability at or above this severity is found",
     )
     scan.set_defaults(func=_scan)
 

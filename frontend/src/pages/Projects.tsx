@@ -4,6 +4,7 @@ import { FolderGit2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "../api/client";
 import { useApp } from "../state/app";
 import { Badge, Button, Card, EmptyState, useToast } from "../components/ui";
+import { Sparkline } from "../components/Charts";
 import { ScanModal } from "../components/ScanModal";
 import { relativeTime } from "../lib/format";
 import { gradeTone } from "../lib/badges";
@@ -65,6 +66,11 @@ export function Projects() {
                   {p.last_scan ? `scanned ${relativeTime(p.last_scan.created_at)}` : "never scanned"}
                 </span>
               </div>
+              {p.recent_scores && p.recent_scores.length >= 2 && (
+                <div style={{ margin: "0 0 var(--sp-3)" }} title={`Recent health scores: ${p.recent_scores.join(", ")}`}>
+                  <Sparkline values={p.recent_scores} color={gradeTone(p.last_scan?.health_grade ?? null)} />
+                </div>
+              )}
               <div className="row spread">
                 <Button
                   size="sm"

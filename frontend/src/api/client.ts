@@ -3,6 +3,7 @@
 
 import type {
   Decision,
+  DiscoveredProject,
   FixEdit,
   GraphEdge,
   GraphNode,
@@ -49,6 +50,12 @@ export const api = {
   health: () => request<{ status: string; version: string }>("/health"),
 
   demoPath: () => request<{ path: string; exists: boolean }>("/demo"),
+
+  discover: (path: string) =>
+    request<{ projects: DiscoveredProject[] }>("/discover", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
 
   listProjects: () => request<{ projects: Project[] }>("/projects"),
 

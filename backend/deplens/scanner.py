@@ -9,9 +9,11 @@ code; the only outbound calls are opt-in registry/OSV metadata lookups.
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from deplens.analyzers import health, licenses, maintenance, usage, versions
@@ -31,7 +33,7 @@ from deplens.parsers.workspace import get_workspaces, workspace_name_for
 from deplens.services.graph import build_graph
 from deplens.services.osv import SEVERITY_ORDER, OSVClient
 from deplens.services.registry import MavenRegistryClient, PyPIRegistryClient, RegistryClient
-from deplens.services.safety import resolve_project_root
+from deplens.services.safety import SKIP_DIRS, is_within, resolve_project_root
 
 MANIFEST = "package.json"
 LOCKFILES = ["package-lock.json", "npm-shrinkwrap.json"]
@@ -39,6 +41,74 @@ LOCKFILES = ["package-lock.json", "npm-shrinkwrap.json"]
 
 class ScanError(Exception):
     """Raised when a scan cannot start (e.g. no manifest found)."""
+
+
+def _detect_ecosystem(d: Path) -> Optional[str]:
+    """Return the ecosystem of a folder from its manifest, or None."""
+    if (d / MANIFEST).is_file():
+        return "npm"
+    for f in PYPI_MANIFESTS:
+        if (d / f).is_file():
+            return "pypi"
+    if (d / MAVEN_MANIFEST).is_file():
+        return "maven"
+    return None
+
+
+def _project_entry(root: Path, d: Path, ecosystem: str) -> Dict[str, Any]:
+    """Describe a discovered project folder for the New-scan picker."""
+    name = d.name
+    if ecosystem == "npm":
+        try:
+            text = (d / MANIFEST).read_text(encoding="utf-8", errors="replace")
+            name = parse_manifest_text(text).name or d.name
+        except ValueError:
+            pass
+    return {
+        "path": str(d),
+        "name": name,
+        "rel": "." if d == root else d.relative_to(root).as_posix(),
+        "ecosystem": ecosystem,
+    }
+
+
+def discover_projects(
+    path: str, max_depth: int = 3, max_results: int = 100
+) -> List[Dict[str, Any]]:
+    """Find scannable projects at or below ``path``.
+
+    If the selected folder has a supported manifest (npm, Python or Maven) it is
+    returned alone. Otherwise the folder is searched (bounded depth, skipping
+    node_modules and build output) for subfolders that contain one — each is a
+    candidate the caller can pick. Descent stops at the first manifest on a
+    branch, so a project's own subfolders are not listed separately.
+    """
+    root = resolve_project_root(path)
+    eco = _detect_ecosystem(root)
+    if eco:
+        return [_project_entry(root, root, eco)]
+
+    results: List[Dict[str, Any]] = []
+    root_depth = len(root.parts)
+    for dirpath, dirnames, _filenames in os.walk(root, followlinks=False):
+        dp = Path(dirpath)
+        depth = len(dp.parts) - root_depth
+        dirnames[:] = [
+            x
+            for x in dirnames
+            if x not in SKIP_DIRS and not os.path.islink(os.path.join(dirpath, x))
+        ]
+        if depth >= max_depth:
+            dirnames[:] = []
+        if dp != root and is_within(root, dp):
+            sub_eco = _detect_ecosystem(dp)
+            if sub_eco:
+                results.append(_project_entry(root, dp, sub_eco))
+                dirnames[:] = []  # a project's own subfolders are part of it
+                if len(results) >= max_results:
+                    break
+    results.sort(key=lambda r: r["rel"])
+    return results
 
 
 @dataclass

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
+  ChevronRight,
   CircleDashed,
   FolderSearch,
   MinusCircle,
+  Package,
   XCircle,
 } from "lucide-react";
 import { api } from "../api/client";
-import type { Stage } from "../api/types";
+import type { DiscoveredProject, Stage } from "../api/types";
 import { Button, Dialog, Spinner, useToast } from "./ui";
 
 const STAGE_LABELS = [
@@ -42,6 +44,8 @@ export function ScanModal({
   const [path, setPath] = useState(initialPath ?? "");
   const [online, setOnline] = useState(true);
   const [running, setRunning] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [candidates, setCandidates] = useState<DiscoveredProject[] | null>(null);
   const [stages, setStages] = useState<Stage[] | null>(null);
   const [tick, setTick] = useState(0);
   const toast = useToast();
@@ -61,20 +65,42 @@ export function ScanModal({
   }, [running]);
 
   useEffect(() => {
-    if (initialPath) run();
+    if (initialPath) handleStart();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function run() {
+  async function handleStart() {
     if (!path.trim()) {
       toast.push("error", "Enter a project path to scan.");
       return;
     }
+    setCandidates(null);
+    setDiscovering(true);
+    try {
+      const { projects } = await api.discover(path.trim());
+      if (projects.length === 0) {
+        toast.push("error", "No supported manifest found in that folder or its subfolders.");
+        return;
+      }
+      if (projects.length === 1) {
+        startScan(projects[0].path);
+        return;
+      }
+      setCandidates(projects);
+    } catch (e: any) {
+      toast.push("error", e?.message ?? "Could not read that folder.");
+    } finally {
+      setDiscovering(false);
+    }
+  }
+
+  async function startScan(targetPath: string) {
+    setCandidates(null);
     setRunning(true);
     setStages(null);
     setTick(0);
     try {
-      const { scan_id, project_id } = await api.scan(path.trim(), online);
+      const { scan_id, project_id } = await api.scan(targetPath, online);
       const detail = await api.scanDetail(scan_id);
       setStages(detail.stages);
       clearInterval(timer.current);
@@ -97,7 +123,7 @@ export function ScanModal({
           <code>pyproject.toml</code> (Python), or <code>pom.xml</code> (Maven). Your source code never leaves your machine.
         </p>
 
-        {!running && (
+        {!running && !candidates && (
           <>
             <label className="field" style={{ marginBottom: "var(--sp-4)" }}>
               <span>Project path</span>
@@ -108,6 +134,7 @@ export function ScanModal({
                   value={path}
                   placeholder="/path/to/your/project"
                   onChange={(e) => setPath(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleStart()}
                   spellCheck={false}
                 />
               </div>
@@ -124,16 +151,49 @@ export function ScanModal({
             </label>
             <div className="row spread">
               <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
-                The bundled demo fixture is pre-filled.
+                No manifest at the top? DepLens will look in subfolders.
               </span>
               <div className="row">
                 <Button variant="ghost" onClick={onClose}>
                   Cancel
                 </Button>
-                <Button variant="primary" onClick={run}>
-                  Start scan
+                <Button variant="primary" onClick={handleStart} disabled={discovering}>
+                  {discovering ? "Looking…" : "Start scan"}
                 </Button>
               </div>
+            </div>
+          </>
+        )}
+
+        {!running && candidates && (
+          <>
+            <p className="muted" style={{ marginTop: 0, marginBottom: "var(--sp-3)" }}>
+              That folder has no manifest of its own, but it contains {candidates.length}{" "}
+              projects. Pick one to scan:
+            </p>
+            <div className="stage-list" style={{ marginBottom: "var(--sp-4)" }}>
+              {candidates.map((c) => (
+                <button
+                  key={c.path}
+                  className="stage project-pick"
+                  onClick={() => startScan(c.path)}
+                  style={{ cursor: "pointer", textAlign: "left", width: "100%" }}
+                >
+                  <span className="stage-icon"><Package size={16} /></span>
+                  <span className="col" style={{ flex: 1, minWidth: 0 }}>
+                    <span>{c.name}</span>
+                    <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
+                      {c.rel} · {c.ecosystem}
+                    </span>
+                  </span>
+                  <ChevronRight size={16} />
+                </button>
+              ))}
+            </div>
+            <div className="row spread">
+              <Button variant="ghost" onClick={() => setCandidates(null)}>
+                Back
+              </Button>
             </div>
           </>
         )}

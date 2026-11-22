@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from deplens.api.deps import db_dep
 from deplens.db import Database
-from deplens.scanner import ScanError, auto_scan
+from deplens.scanner import ScanError, auto_scan, discover_projects
 from deplens.services.safety import PathSafetyError
 
 router = APIRouter(prefix="/api", tags=["projects"])
@@ -19,6 +19,10 @@ router = APIRouter(prefix="/api", tags=["projects"])
 class ScanRequest(BaseModel):
     path: str
     online: bool = True
+
+
+class DiscoverRequest(BaseModel):
+    path: str
 
 
 @router.get("/projects")
@@ -33,6 +37,20 @@ def demo_path():
     repo_root = Path(__file__).resolve().parents[3]
     demo = repo_root / "fixtures" / "demo-project"
     return {"path": str(demo), "exists": demo.is_dir()}
+
+
+@router.post("/discover")
+def discover(req: DiscoverRequest):
+    """List scannable projects at or beneath a folder, for the New-scan picker.
+
+    Returns the folder itself when it has a supported manifest, otherwise the
+    npm/Python/Maven sub-projects found within it.
+    """
+    try:
+        projects = discover_projects(req.path)
+    except PathSafetyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"projects": projects}
 
 
 @router.post("/scan")

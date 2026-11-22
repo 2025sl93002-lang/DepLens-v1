@@ -162,3 +162,31 @@ def test_scan_bad_path_returns_400(client):
 def test_project_without_manifest_422(client, tmp_path):
     r = client.post("/api/scan", json={"path": str(tmp_path), "online": False})
     assert r.status_code == 422
+
+
+def test_discover_single_project(client, tmp_npm_project):
+    r = client.post("/api/discover", json={"path": str(tmp_npm_project)})
+    assert r.status_code == 200
+    projects = r.json()["projects"]
+    assert len(projects) == 1
+    assert projects[0]["rel"] == "."
+    assert projects[0]["ecosystem"] == "npm"
+    assert projects[0]["name"] == "tmp-app"
+
+
+def test_discover_finds_subprojects(client, tmp_path):
+    # A parent folder with no manifest of its own, holding an npm and a Python project.
+    (tmp_path / "web").mkdir()
+    (tmp_path / "web" / "package.json").write_text('{"name":"web"}')
+    (tmp_path / "svc").mkdir()
+    (tmp_path / "svc" / "requirements.txt").write_text("flask==3.0.0\n")
+
+    r = client.post("/api/discover", json={"path": str(tmp_path)})
+    assert r.status_code == 200
+    found = {p["rel"]: p["ecosystem"] for p in r.json()["projects"]}
+    assert found == {"web": "npm", "svc": "pypi"}
+
+
+def test_discover_bad_path_400(client):
+    r = client.post("/api/discover", json={"path": "/nonexistent/xyz"})
+    assert r.status_code == 400

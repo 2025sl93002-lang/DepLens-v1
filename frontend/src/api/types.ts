@@ -35,6 +35,13 @@ export interface Project {
   recent_scores?: number[];
 }
 
+export interface DiscoveredProject {
+  path: string;
+  name: string;
+  rel: string;
+  ecosystem: string;
+}
+
 export interface TrendPoint {
   scan_id: number;
   created_at: number;

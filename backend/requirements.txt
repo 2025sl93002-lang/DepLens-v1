@@ -5,3 +5,4 @@ uvicorn[standard]==0.32.1  # BSD-3-Clause
 pydantic==2.10.4        # MIT
 httpx==0.28.1           # BSD-3-Clause
 networkx==3.2.1         # BSD-3-Clause
+tomli==2.0.1 ; python_version < "3.11"  # MIT

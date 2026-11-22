@@ -24,6 +24,8 @@ import { useApp } from "../state/app";
 import { Button } from "./ui";
 import { ScanModal } from "./ScanModal";
 import { relativeTime } from "../lib/format";
+import { useAsync } from "../hooks/useAsync";
+import { api } from "../api/client";
 import "./Layout.css";
 
 const NAV = [
@@ -60,13 +62,21 @@ const TITLES: Record<string, string> = {
 
 export function Layout() {
   const { theme, toggle } = useTheme();
-  const { projects, currentProjectId, setCurrentProject, refreshProjects, setCurrentScan } = useApp();
+  const { projects, currentProjectId, currentScanId, currentWorkspace, setCurrentProject, refreshProjects, setCurrentScan, setCurrentWorkspace } = useApp();
   const [scanOpen, setScanOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
   const current = projects.find((p) => p.id === currentProjectId) ?? null;
   const title = TITLES[location.pathname] ?? "DepLens";
+
+  // Fetch workspace list for the current scan (lightweight: only summary_json).
+  const { data: scanMeta } = useAsync(
+    () => (currentScanId ? api.scanDetail(currentScanId) : Promise.resolve(null)),
+    [currentScanId],
+  );
+  const workspaces: string[] = scanMeta?.summary?.workspaces ?? [];
+  const hasWorkspaces = workspaces.length > 0;
 
   return (
     <div className="app">
@@ -106,6 +116,24 @@ export function Layout() {
             </div>
           )}
         </div>
+
+        {hasWorkspaces && (
+          <div className="project-switch" style={{ paddingTop: 0 }}>
+            <select
+              className="select"
+              value={currentWorkspace ?? ""}
+              onChange={(e) => setCurrentWorkspace(e.target.value || null)}
+              aria-label="Select workspace"
+            >
+              <option value="">All workspaces</option>
+              {workspaces.map((ws) => (
+                <option key={ws} value={ws}>
+                  {ws}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <nav className="nav">
           {NAV.map((item) => (

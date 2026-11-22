@@ -7,8 +7,10 @@ interface AppState {
   loading: boolean;
   currentProjectId: number | null;
   currentScanId: number | null;
+  currentWorkspace: string | null;
   setCurrentProject: (id: number | null) => void;
   setCurrentScan: (id: number | null) => void;
+  setCurrentWorkspace: (ws: string | null) => void;
   refreshProjects: () => Promise<void>;
 }
 
@@ -27,6 +29,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentScanId, setScanId] = useState<number | null>(
     () => Number(localStorage.getItem("deplens-scan")) || null,
   );
+  const [currentWorkspace, setWorkspace] = useState<string | null>(null);
 
   const refreshProjects = async () => {
     setLoading(true);
@@ -60,6 +63,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [currentProjectId, projects]);
 
+  // Reset workspace filter when scan changes.
+  useEffect(() => {
+    setWorkspace(null);
+  }, [currentScanId]);
+
   useEffect(() => {
     if (currentProjectId) localStorage.setItem("deplens-project", String(currentProjectId));
     else localStorage.removeItem("deplens-project");
@@ -82,8 +90,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loading,
         currentProjectId,
         currentScanId,
+        currentWorkspace,
         setCurrentProject,
         setCurrentScan: setScanId,
+        setCurrentWorkspace: setWorkspace,
         refreshProjects,
       }}
     >

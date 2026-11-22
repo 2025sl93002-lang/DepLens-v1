@@ -75,7 +75,6 @@ export const api = {
       `/scans/${id}/packages${q ? `?${q}` : ""}`,
     );
   },
-
   packageDetail: (id: number, name: string) =>
     request<PackageDetail>(`/scans/${id}/package/${encodeURIComponent(name)}`),
 

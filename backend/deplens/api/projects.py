@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from deplens.api.deps import db_dep
 from deplens.db import Database
-from deplens.scanner import ScanError, run_scan
+from deplens.scanner import ScanError, auto_scan, run_scan
 from deplens.services.safety import PathSafetyError
 
 router = APIRouter(prefix="/api", tags=["projects"])
@@ -38,7 +38,7 @@ def demo_path():
 @router.post("/scan")
 async def scan_project(req: ScanRequest, db: Database = Depends(db_dep)):
     try:
-        scan_id = await run_scan(db, req.path, online=req.online)
+        scan_id = await auto_scan(db, req.path, online=req.online)
     except PathSafetyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ScanError as exc:

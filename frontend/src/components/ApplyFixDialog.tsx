@@ -68,11 +68,13 @@ export function ApplyFixDialog({
 
   function download() {
     if (!edit) return;
-    const blob = new Blob([edit.new_content], { type: "application/json" });
+    const filename = edit.manifest_path?.split("/").pop() ?? "manifest";
+    const mimeType = filename.endsWith(".json") ? "application/json" : "text/plain";
+    const blob = new Blob([edit.new_content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "package.json";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -82,7 +84,8 @@ export function ApplyFixDialog({
     try {
       const result = await api.fixApply(scanId, packages);
       setEdit(result);
-      toast.push("success", "package.json updated. Run npm install to apply.");
+      const filename = result.manifest_path?.split("/").pop() ?? "manifest";
+      toast.push("success", `${filename} updated. Run: ${result.install_command}`);
       onApplied?.();
     } catch (e: any) {
       toast.push("error", e?.message ?? "Write failed.");
@@ -97,9 +100,16 @@ export function ApplyFixDialog({
       <div style={{ padding: "var(--sp-5)", maxWidth: 680 }}>
         <h2 style={{ fontSize: "var(--text-xl)", marginBottom: 4 }}>Apply fix</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          DepLens edits <span className="mono">package.json</span> only — it never runs{" "}
-          <span className="mono">npm install</span> (that would execute lifecycle scripts). You run
-          the install yourself.
+          {edit ? (
+            <>
+              DepLens edits{" "}
+              <span className="mono">{edit.manifest_path?.split("/").pop() ?? "manifest"}</span>{" "}
+              only — it never runs the install command. You run{" "}
+              <span className="mono">{edit.install_command}</span> yourself.
+            </>
+          ) : (
+            "DepLens edits your manifest file only — it never runs the install command."
+          )}
         </p>
 
         {error && (
@@ -166,7 +176,7 @@ export function ApplyFixDialog({
                     <Button variant="secondary" onClick={() => copy(edit.diff, "Diff")}>
                       {copied === "Diff" ? <Check size={15} /> : <Copy size={15} />} Copy diff
                     </Button>
-                    <Button variant="secondary" onClick={() => copy(edit.new_content, "package.json")}>
+                    <Button variant="secondary" onClick={() => copy(edit.new_content, edit.manifest_path?.split("/").pop() ?? "file")}>
                       <Copy size={15} /> Copy file
                     </Button>
                     <Button variant="ghost" onClick={download}>
@@ -184,7 +194,7 @@ export function ApplyFixDialog({
                       </div>
                     ) : (
                       <Button variant="primary" onClick={() => setConfirmWrite(true)}>
-                        Write to package.json
+                        Write to {edit.manifest_path?.split("/").pop() ?? "file"}
                       </Button>
                     ))}
                 </div>

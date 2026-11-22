@@ -60,6 +60,13 @@ export interface HealthScore {
   notes: string[];
 }
 
+export interface WorkspaceSummary {
+  direct: number;
+  total: number;
+  outdated: number;
+  vulnerable_packages: number;
+}
+
 export interface ScanSummary {
   total: number;
   direct: number;
@@ -75,6 +82,8 @@ export interface ScanSummary {
   potentially_unused: number;
   maintenance_concerns: number;
   health: HealthScore;
+  workspaces?: string[];
+  workspace_summary?: Record<string, WorkspaceSummary>;
 }
 
 export interface Stage {
@@ -120,6 +129,7 @@ export interface PackageRow {
   maintenance_status: MaintenanceStatus | null;
   max_severity: Severity | null;
   vuln_count: number;
+  workspace_name: string | null;
   data: any;
 }
 

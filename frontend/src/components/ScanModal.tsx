@@ -92,8 +92,9 @@ export function ScanModal({
       <div className="scan-modal">
         <h2>Scan a project</h2>
         <p className="muted" style={{ marginTop: 0, marginBottom: "var(--sp-4)" }}>
-          Point DepLens at a local npm project folder (one containing{" "}
-          <code>package.json</code>). Your source code never leaves your machine.
+          Point DepLens at a local project folder containing{" "}
+          <code>package.json</code> (npm/yarn/pnpm), <code>requirements.txt</code> or{" "}
+          <code>pyproject.toml</code> (Python), or <code>pom.xml</code> (Maven). Your source code never leaves your machine.
         </p>
 
         {!running && (
@@ -105,7 +106,7 @@ export function ScanModal({
                 <input
                   className="input input-search"
                   value={path}
-                  placeholder="/path/to/your/npm/project"
+                  placeholder="/path/to/your/project"
                   onChange={(e) => setPath(e.target.value)}
                   spellCheck={false}
                 />
@@ -116,7 +117,7 @@ export function ScanModal({
               <span className="col">
                 <span>Online analysis</span>
                 <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
-                  Query the npm registry and OSV.dev for versions, licenses and advisories.
+                  Query npm/PyPI registries and OSV.dev for versions, licenses and advisories.
                   Only package names and versions are sent. Uncheck for fully offline analysis.
                 </span>
               </span>

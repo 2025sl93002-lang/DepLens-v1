@@ -1,0 +1,9 @@
+{
+  "name": "@demo/app",
+  "version": "1.0.0",
+  "dependencies": {
+    "@demo/core": "*",
+    "express": "^4.18.0",
+    "dotenv": "^16.0.0"
+  }
+}

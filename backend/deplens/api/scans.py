@@ -51,6 +51,7 @@ def scan_packages(
     type: Optional[str] = Query(None, pattern="^(direct|transitive)$"),
     scope: Optional[str] = None,
     filter: Optional[str] = None,
+    workspace: Optional[str] = None,
     sort: str = "name",
     order: str = "asc",
     db: Database = Depends(db_dep),
@@ -74,6 +75,8 @@ def scan_packages(
         rows = [r for r in rows if not r["is_direct"]]
     if scope:
         rows = [r for r in rows if r["scope"] == scope]
+    if workspace:
+        rows = [r for r in rows if r.get("workspace_name") == workspace]
 
     filters = {
         "outdated": lambda r: r["update_type"] in ("major", "minor", "patch"),

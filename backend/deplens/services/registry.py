@@ -19,6 +19,8 @@ import httpx
 DEFAULT_REGISTRY = "https://registry.npmjs.org"
 # Weekly download counts live on a separate host, not the registry doc itself.
 DOWNLOADS_API = "https://api.npmjs.org"
+PYPI_REGISTRY = "https://pypi.org/pypi"
+MAVEN_SEARCH = "https://search.maven.org/solrsearch/select"
 USER_AGENT = "DepLens/0.1 (+https://github.com/deplens/deplens)"
 REQUEST_TIMEOUT = 15.0
 MAX_CONCURRENCY = 8
@@ -162,6 +164,166 @@ class RegistryClient:
             return None
         downloads = doc.get("downloads")
         return downloads if isinstance(downloads, int) else None
+
+    async def get_many(self, names: List[str]) -> Dict[str, RegistryInfo]:
+        sem = asyncio.Semaphore(MAX_CONCURRENCY)
+
+        async def _one(n: str):
+            async with sem:
+                return n, await self.get(n)
+
+        results = await asyncio.gather(*(_one(n) for n in names))
+        return dict(results)
+
+
+class PyPIRegistryClient:
+    """Fetches package metadata from the PyPI JSON API."""
+
+    def __init__(self, client: Optional[httpx.AsyncClient] = None):
+        self._client = client
+        self._owns_client = client is None
+        self._cache: Dict[str, RegistryInfo] = {}
+
+    async def __aenter__(self):
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                timeout=REQUEST_TIMEOUT, headers={"User-Agent": USER_AGENT}
+            )
+        return self
+
+    async def __aexit__(self, *exc):
+        if self._owns_client and self._client is not None:
+            await self._client.aclose()
+
+    async def get(self, name: str) -> RegistryInfo:
+        if name in self._cache:
+            return self._cache[name]
+        info = await self._fetch(name)
+        self._cache[name] = info
+        return info
+
+    async def _fetch(self, name: str) -> RegistryInfo:
+        url = f"{PYPI_REGISTRY}/{name}/json"
+        try:
+            resp = await self._client.get(url)
+        except httpx.HTTPError as exc:
+            return RegistryInfo(name=name, available=False, error=f"network error: {exc}")
+        if resp.status_code == 404:
+            return RegistryInfo(name=name, available=False, error="package not found on PyPI")
+        if resp.status_code != 200:
+            return RegistryInfo(
+                name=name, available=False, error=f"PyPI returned HTTP {resp.status_code}"
+            )
+        try:
+            doc = resp.json()
+        except ValueError:
+            return RegistryInfo(name=name, available=False, error="invalid JSON from PyPI")
+
+        info = doc.get("info") or {}
+        releases = doc.get("releases") or {}
+        return RegistryInfo(
+            name=name,
+            available=True,
+            latest=info.get("version"),
+            all_versions=list(releases.keys()),
+            license=info.get("license") or None,
+            description=info.get("summary"),
+            homepage=info.get("home_page") or info.get("project_url"),
+        )
+
+    async def get_many(self, names: List[str]) -> Dict[str, RegistryInfo]:
+        sem = asyncio.Semaphore(MAX_CONCURRENCY)
+
+        async def _one(n: str):
+            async with sem:
+                return n, await self.get(n)
+
+        results = await asyncio.gather(*(_one(n) for n in names))
+        return dict(results)
+
+
+class MavenRegistryClient:
+    """Fetches package metadata from Maven Central search API.
+
+    Package names are ``groupId:artifactId`` (e.g. ``org.springframework:spring-core``).
+    """
+
+    def __init__(self, client: Optional[httpx.AsyncClient] = None):
+        self._client = client
+        self._owns_client = client is None
+        self._cache: Dict[str, RegistryInfo] = {}
+
+    async def __aenter__(self):
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                timeout=REQUEST_TIMEOUT, headers={"User-Agent": USER_AGENT}
+            )
+        return self
+
+    async def __aexit__(self, *exc):
+        if self._owns_client and self._client is not None:
+            await self._client.aclose()
+
+    async def get(self, name: str) -> RegistryInfo:
+        if name in self._cache:
+            return self._cache[name]
+        info = await self._fetch(name)
+        self._cache[name] = info
+        return info
+
+    async def _fetch(self, name: str) -> RegistryInfo:
+        # name is "groupId:artifactId"
+        parts = name.split(":", 1)
+        if len(parts) != 2:
+            return RegistryInfo(name=name, available=False, error="invalid Maven coordinate")
+        group_id, artifact_id = parts
+        url = (
+            f"{MAVEN_SEARCH}?q=g:{group_id}+AND+a:{artifact_id}"
+            f"&rows=1&wt=json&core=gav"
+        )
+        try:
+            resp = await self._client.get(url)
+        except httpx.HTTPError as exc:
+            return RegistryInfo(name=name, available=False, error=f"network error: {exc}")
+        if resp.status_code != 200:
+            return RegistryInfo(
+                name=name, available=False, error=f"Maven Central returned HTTP {resp.status_code}"
+            )
+        try:
+            doc = resp.json()
+        except ValueError:
+            return RegistryInfo(name=name, available=False, error="invalid JSON from Maven Central")
+
+        docs = (doc.get("response") or {}).get("docs") or []
+        if not docs:
+            return RegistryInfo(
+                name=name, available=False, error="package not found on Maven Central"
+            )
+
+        latest_doc = docs[0]
+        latest = latest_doc.get("latestVersion") or latest_doc.get("v")
+
+        # Fetch all versions via a broader query
+        all_versions: List[str] = []
+        try:
+            vresp = await self._client.get(
+                f"{MAVEN_SEARCH}?q=g:{group_id}+AND+a:{artifact_id}&rows=50&wt=json&core=gav"
+            )
+            if vresp.status_code == 200:
+                vdocs = (vresp.json().get("response") or {}).get("docs") or []
+                all_versions = [d["v"] for d in vdocs if d.get("v")]
+        except Exception:
+            pass
+
+        return RegistryInfo(
+            name=name,
+            available=True,
+            latest=latest,
+            all_versions=all_versions,
+            license=None,
+            description=None,
+            homepage=f"https://central.sonatype.com/artifact/{group_id}/{artifact_id}",
+        )
 
     async def get_many(self, names: List[str]) -> Dict[str, RegistryInfo]:
         sem = asyncio.Semaphore(MAX_CONCURRENCY)

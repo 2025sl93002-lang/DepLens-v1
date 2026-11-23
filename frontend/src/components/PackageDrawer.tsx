@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import { useAsync } from "../hooks/useAsync";
 import { Badge, Button, Drawer, SeverityBadge, Skeleton } from "./ui";
 import { LicenseBadge, MaintenanceBadge, UpdateBadge, UsageBadge } from "../lib/badges";
+import { formatNumber } from "../lib/format";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -63,6 +64,7 @@ export function PackageDrawer({
             <Field label="Depth">{data.depth}</Field>
             <Field label="Dependents">{data.dependents}</Field>
             <Field label="Paths">{data.path_count}</Field>
+            <Field label="Weekly downloads">{formatNumber(data.data?.maintenance?.weekly_downloads)}</Field>
           </div>
 
           {data.data?.maintenance?.signals?.length > 0 && (

@@ -50,6 +50,22 @@ def health():
 # -- Static SPA (served only if a production build exists) --------------------
 _FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
+
+def _resolve_spa_file(dist: Path, full_path: str) -> Path:
+    """Resolve an SPA request to a file to serve, guarding against traversal.
+
+    Returns the requested file only when it exists **and** is contained within
+    ``dist`` after resolution; otherwise falls back to ``index.html`` (SPA
+    client-side routing). This prevents requests like ``..%2f..%2fetc/passwd``
+    from escaping the build directory and reading arbitrary files.
+    """
+    dist = dist.resolve()
+    candidate = (dist / full_path).resolve()
+    if full_path and candidate.is_file() and candidate.is_relative_to(dist):
+        return candidate
+    return dist / "index.html"
+
+
 if _FRONTEND_DIST.is_dir():
     app.mount(
         "/assets",
@@ -62,7 +78,4 @@ if _FRONTEND_DIST.is_dir():
         # Never shadow the API.
         if full_path.startswith("api/"):
             return JSONResponse({"detail": "Not found"}, status_code=404)
-        target = _FRONTEND_DIST / full_path
-        if full_path and target.is_file():
-            return FileResponse(str(target))
-        return FileResponse(str(_FRONTEND_DIST / "index.html"))
+        return FileResponse(str(_resolve_spa_file(_FRONTEND_DIST, full_path)))

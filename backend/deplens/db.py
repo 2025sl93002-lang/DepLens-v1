@@ -205,10 +205,17 @@ class Database:
                 "FROM scans WHERE project_id=? ORDER BY created_at DESC LIMIT 1",
                 (r["id"],),
             )
+            recent = self.query(
+                "SELECT health_score FROM scans WHERE project_id=? AND health_score IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT 5",
+                (r["id"],),
+            )
             projects.append(
                 {
                     **dict(r),
                     "last_scan": dict(last) if last else None,
+                    # oldest -> newest, for an inline sparkline on the project card
+                    "recent_scores": [row["health_score"] for row in reversed(recent)],
                 }
             )
         return projects

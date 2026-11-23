@@ -1,23 +1,31 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { api } from "../api/client";
 import { useApp } from "../state/app";
 import { useAsync } from "../hooks/useAsync";
 import { Badge, Button, Card, CardHead, EmptyState, Skeleton } from "../components/ui";
+import { TrendChart } from "../components/Charts";
 import { NoScan } from "../components/Layout";
 import { formatDate } from "../lib/format";
 import { gradeTone } from "../lib/badges";
 
 export function ScanHistory() {
   const { currentProjectId, currentScanId, setCurrentScan } = useApp();
+  const navigate = useNavigate();
   const [compareWith, setCompareWith] = useState<number | null>(null);
   const { data, loading } = useAsync(
     () => (currentProjectId ? api.projectScans(currentProjectId) : Promise.resolve(null)),
     [currentProjectId],
   );
+  const { data: trendData } = useAsync(
+    () => (currentProjectId ? api.trend(currentProjectId) : Promise.resolve(null)),
+    [currentProjectId],
+  );
   if (!currentProjectId) return <NoScan />;
   if (loading) return <Skeleton h={300} />;
   const scans = data?.scans ?? [];
+  const trend = trendData?.trend ?? [];
 
   return (
     <>
@@ -32,6 +40,30 @@ export function ScanHistory() {
         <EmptyState title="No scans yet" />
       ) : (
         <>
+          <div style={{ marginBottom: "var(--sp-4)" }}>
+            <Card>
+              <CardHead title="Health trend" subtitle="Click a point to open that scan's overview" />
+              <div className="card-pad">
+                {trend.length >= 2 ? (
+                  <TrendChart
+                    data={trend.map((t) => ({
+                      scan_id: t.scan_id,
+                      label: formatDate(t.created_at),
+                      health_score: t.health_score,
+                      vulnerable: t.vulnerable_packages,
+                      outdated: t.outdated,
+                    }))}
+                    onPointClick={(id) => { setCurrentScan(id); navigate("/"); }}
+                  />
+                ) : (
+                  <p className="muted" style={{ margin: 0 }}>
+                    Run at least 2 scans of this project to see its health trend over time.
+                  </p>
+                )}
+              </div>
+            </Card>
+          </div>
+
           <div className="table-wrap">
             <table className="data">
               <thead>

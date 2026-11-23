@@ -32,6 +32,17 @@ export interface Project {
   ecosystem: string;
   created_at: number;
   last_scan: ScanRef | null;
+  recent_scores?: number[];
+}
+
+export interface TrendPoint {
+  scan_id: number;
+  created_at: number;
+  health_score: number | null;
+  health_grade: string | null;
+  vulnerable_packages: number | null;
+  outdated: number | null;
+  total: number | null;
 }
 
 export interface HealthFactor {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { titleCase, relativeTime, formatDate } from "./format";
+import { titleCase, relativeTime, formatDate, formatNumber } from "./format";
 
 describe("format helpers", () => {
   it("titleCase converts kebab/snake to Title Case", () => {
@@ -19,5 +19,16 @@ describe("format helpers", () => {
   it("formatDate returns a dash for empty input", () => {
     expect(formatDate(null)).toBe("—");
     expect(formatDate(undefined)).toBe("—");
+  });
+
+  it("formatNumber renders a grouped integer", () => {
+    expect(formatNumber(25000000)).toBe((25000000).toLocaleString());
+    expect(formatNumber(0)).toBe("0");
+  });
+
+  it("formatNumber returns 'unknown' for null/undefined/NaN", () => {
+    expect(formatNumber(null)).toBe("unknown");
+    expect(formatNumber(undefined)).toBe("unknown");
+    expect(formatNumber(NaN)).toBe("unknown");
   });
 });

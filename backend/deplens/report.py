@@ -9,8 +9,10 @@ from __future__ import annotations
 import csv
 import io
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
+from urllib.parse import quote
 
 from deplens import __version__
 from deplens.db import Database
@@ -43,6 +45,7 @@ def build_report_data(db: Database, scan_id: int) -> Dict[str, Any]:
             "created_at": datetime.fromtimestamp(scan["created_at"], timezone.utc).isoformat(),
             "online": bool(scan["online"]),
             "lockfile_format": scan["lockfile_format"],
+            "root_version": scan["root_version"],
             "health_score": scan["health_score"],
             "health_grade": scan["health_grade"],
             "health_confidence": scan["health_confidence"],
@@ -184,3 +187,163 @@ def render_markdown(data: Dict[str, Any]) -> str:
         lines.append(f"- {lim}")
     lines.append("")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------- #
+# SBOM exports (CycloneDX 1.4 / SPDX 2.3)
+# --------------------------------------------------------------------------- #
+
+# DepLens severities -> CycloneDX rating vocabulary (critical/high/medium/low/…).
+_CDX_SEVERITY = {
+    "critical": "critical",
+    "high": "high",
+    "moderate": "medium",
+    "low": "low",
+    "unknown": "unknown",
+}
+
+
+def _purl(name: str, version: str) -> str:
+    """Build a package URL (purl) for an npm component.
+
+    Scoped names keep the ``@scope/name`` structure with the ``@`` percent-encoded
+    in the namespace, per the purl spec (e.g. ``pkg:npm/%40babel/core@7.0.0``).
+    """
+    ver = quote(version or "", safe="")
+    if name.startswith("@") and "/" in name:
+        scope, _, pkg = name.partition("/")
+        return f"pkg:npm/{quote(scope, safe='')}/{quote(pkg, safe='')}@{ver}"
+    return f"pkg:npm/{quote(name or '', safe='')}@{ver}"
+
+
+def _utc_now_z() -> str:
+    """UTC timestamp as ``YYYY-MM-DDThh:mm:ssZ`` (the form SPDX/CycloneDX expect)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def render_cyclonedx(data: Dict[str, Any]) -> str:
+    """Render a CycloneDX 1.4 JSON SBOM from persisted scan data.
+
+    Components come from the resolved package set; OSV advisories are emitted as
+    ``vulnerabilities`` linked to their component via purl. Hashes are omitted —
+    integrity digests are not persisted with the scan (a documented limitation).
+    """
+    project = data["project"] or {}
+    components: List[Dict[str, Any]] = []
+    seen_refs: set = set()
+    for p in data["packages"]:
+        purl = _purl(p["name"], p["version"])
+        ref = purl
+        n = 1
+        while ref in seen_refs:  # guard against duplicate name@version rows
+            ref = f"{purl}#{n}"
+            n += 1
+        seen_refs.add(ref)
+        component: Dict[str, Any] = {
+            "type": "library",
+            "bom-ref": ref,
+            "name": p["name"],
+            "version": p["version"],
+            "purl": purl,
+        }
+        lic = p.get("license")
+        if lic:
+            component["licenses"] = [{"license": {"name": lic}}]
+        components.append(component)
+
+    vulnerabilities: List[Dict[str, Any]] = []
+    for v in data["vulnerabilities"]:
+        entry: Dict[str, Any] = {
+            "id": v.get("cve") or v["osv_id"],
+            "source": {"name": "OSV"},
+            "ratings": [
+                {"severity": _CDX_SEVERITY.get((v.get("severity") or "unknown").lower(), "unknown")}
+            ],
+            "affects": [{"ref": _purl(v["package"], v["installed_version"])}],
+        }
+        if v.get("url"):
+            entry["source"]["url"] = v["url"]
+        if v.get("summary"):
+            entry["description"] = v["summary"]
+        vulnerabilities.append(entry)
+
+    metadata_component: Dict[str, Any] = {
+        "type": "application",
+        "bom-ref": project.get("name") or "root-project",
+        "name": project.get("name") or "project",
+    }
+    if data["scan"].get("root_version"):
+        metadata_component["version"] = data["scan"]["root_version"]
+
+    bom: Dict[str, Any] = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.4",
+        "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+        "version": 1,
+        "metadata": {
+            "timestamp": _utc_now_z(),
+            "tools": [{"vendor": "DepLens", "name": "DepLens", "version": __version__}],
+            "component": metadata_component,
+        },
+        "components": components,
+    }
+    if vulnerabilities:
+        bom["vulnerabilities"] = vulnerabilities
+    return json.dumps(bom, indent=2)
+
+
+def render_spdx(data: Dict[str, Any]) -> str:
+    """Render an SPDX 2.3 JSON SBOM from persisted scan data.
+
+    Each component becomes an SPDX package with a purl external ref and a
+    ``DESCRIBES`` relationship from the document. License strings are passed
+    through as ``licenseDeclared``; ``licenseConcluded`` is ``NOASSERTION`` since
+    DepLens does not perform a legal license determination.
+    """
+    project = data["project"] or {}
+    doc_name = f"deplens-sbom-{project.get('name') or 'project'}"
+    spdx_packages: List[Dict[str, Any]] = []
+    relationships: List[Dict[str, Any]] = []
+    for i, p in enumerate(data["packages"]):
+        spdxid = f"SPDXRef-Package-{i}"
+        spdx_packages.append(
+            {
+                "SPDXID": spdxid,
+                "name": p["name"],
+                "versionInfo": p["version"],
+                "downloadLocation": "NOASSERTION",
+                "filesAnalyzed": False,
+                "licenseConcluded": "NOASSERTION",
+                "licenseDeclared": p.get("license") or "NOASSERTION",
+                "copyrightText": "NOASSERTION",
+                "externalRefs": [
+                    {
+                        "referenceCategory": "PACKAGE-MANAGER",
+                        "referenceType": "purl",
+                        "referenceLocator": _purl(p["name"], p["version"]),
+                    }
+                ],
+            }
+        )
+        relationships.append(
+            {
+                "spdxElementId": "SPDXRef-DOCUMENT",
+                "relatedSpdxElement": spdxid,
+                "relationshipType": "DESCRIBES",
+            }
+        )
+
+    doc = {
+        "spdxVersion": "SPDX-2.3",
+        "dataLicense": "CC0-1.0",
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "name": doc_name,
+        "documentNamespace": f"https://deplens.dev/spdx/{uuid.uuid4()}",
+        "creationInfo": {
+            "created": _utc_now_z(),
+            "creators": [f"Tool: DepLens-{__version__}"],
+        },
+        "packages": spdx_packages,
+        "relationships": relationships,
+    }
+    return json.dumps(doc, indent=2)

@@ -11,6 +11,7 @@ import {
   Moon,
   Plus,
   Scale,
+  PackageSearch,
   ScanLine,
   Settings as SettingsIcon,
   ShieldAlert,
@@ -72,7 +73,7 @@ export function Layout() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            <ScanLine size={18} />
+            <PackageSearch size={18} />
           </div>
           <div className="col">
             <span className="brand-name">DepLens</span>

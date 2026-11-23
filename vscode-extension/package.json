@@ -1,0 +1,92 @@
+{
+  "name": "deplens",
+  "displayName": "DepLens",
+  "description": "Local-first npm dependency health explorer — security, usage, impact simulator, and decisions in your editor",
+  "version": "0.2.0",
+  "publisher": "2025sl93002-lang",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "npm",
+    "dependencies",
+    "security",
+    "vulnerability",
+    "package"
+  ],
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/2025sl93002-lang/DepLens-v1"
+  },
+  "activationEvents": [
+    "workspaceContains:**/package.json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "deplens.deps",
+          "name": "DepLens",
+          "icon": "$(shield)",
+          "contextualTitle": "DepLens Dependencies"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "deplens.refresh",
+        "title": "DepLens: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "deplens.openDetail",
+        "title": "DepLens: Open Package Detail"
+      },
+      {
+        "command": "deplens.simulateImpact",
+        "title": "DepLens: Simulate Impact",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "deplens.applyFix",
+        "title": "DepLens: Apply Fix"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "deplens.refresh",
+          "when": "view == deplens.deps",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "deplens.simulateImpact",
+          "when": "viewItem == deplensPackage || viewItem == deplensPackageUpgradable",
+          "group": "inline"
+        },
+        {
+          "command": "deplens.openDetail",
+          "when": "viewItem == deplensPackage || viewItem == deplensPackageUpgradable"
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/vscode": "^1.146.0",
+    "typescript": "^5.3.0"
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npx @vscode/vsce package"
+  }
+}

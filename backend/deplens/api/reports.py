@@ -7,7 +7,14 @@ from fastapi.responses import PlainTextResponse
 
 from deplens.api.deps import db_dep
 from deplens.db import Database
-from deplens.report import build_report_data, render_csv, render_json, render_markdown
+from deplens.report import (
+    build_report_data,
+    render_csv,
+    render_cyclonedx,
+    render_json,
+    render_markdown,
+    render_spdx,
+)
 
 router = APIRouter(prefix="/api/scans", tags=["reports"])
 
@@ -15,7 +22,7 @@ router = APIRouter(prefix="/api/scans", tags=["reports"])
 @router.get("/{scan_id}/report")
 def export_report(
     scan_id: int,
-    format: str = Query("markdown", pattern="^(markdown|json|csv)$"),
+    format: str = Query("markdown", pattern="^(markdown|json|csv|cyclonedx|spdx)$"),
     db: Database = Depends(db_dep),
 ):
     try:
@@ -30,5 +37,21 @@ def export_report(
             render_csv(data),
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="deplens-scan-{scan_id}.csv"'},
+        )
+    if format == "cyclonedx":
+        return PlainTextResponse(
+            render_cyclonedx(data),
+            media_type="application/vnd.cyclonedx+json",
+            headers={
+                "Content-Disposition": f'attachment; filename="deplens-scan-{scan_id}.cdx.json"'
+            },
+        )
+    if format == "spdx":
+        return PlainTextResponse(
+            render_spdx(data),
+            media_type="application/spdx+json",
+            headers={
+                "Content-Disposition": f'attachment; filename="deplens-scan-{scan_id}.spdx.json"'
+            },
         )
     return PlainTextResponse(render_markdown(data), media_type="text/markdown")

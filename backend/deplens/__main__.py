@@ -30,6 +30,15 @@ def _scan(args):
         print(f"Scan failed: {exc}", file=sys.stderr)
         sys.exit(1)
     scan = db.query_one("SELECT * FROM scans WHERE id=?", (scan_id,))
+
+    if getattr(args, "sbom", None):
+        from deplens.report import build_report_data, render_cyclonedx, render_spdx
+
+        data = build_report_data(db, scan_id)
+        out = render_cyclonedx(data) if args.sbom == "cyclonedx" else render_spdx(data)
+        print(out)
+        return
+
     print(f"Scan #{scan_id} complete.")
     print(f"  Health: {scan['health_score']}/100 "
           f"({scan['health_grade']}, {scan['health_confidence']})")
@@ -57,6 +66,11 @@ def main():
     scan = sub.add_parser("scan", help="Scan a project and print a summary")
     scan.add_argument("path", help="Path to the npm project directory")
     scan.add_argument("--offline", action="store_true", help="Skip registry/OSV network calls")
+    scan.add_argument(
+        "--sbom",
+        choices=["cyclonedx", "spdx"],
+        help="Emit an SBOM (CycloneDX 1.4 or SPDX 2.3 JSON) to stdout instead of a summary",
+    )
     scan.set_defaults(func=_scan)
 
     args = parser.parse_args()

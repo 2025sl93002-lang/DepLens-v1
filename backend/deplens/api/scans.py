@@ -98,7 +98,7 @@ def scan_packages(
     return {"packages": rows, "count": len(rows)}
 
 
-@router.get("/{scan_id}/package/{name}")
+@router.get("/{scan_id}/package/{name:path}")
 def package_detail(scan_id: int, name: str, db: Database = Depends(db_dep)):
     _get_scan(db, scan_id)
     row = db.query_one(

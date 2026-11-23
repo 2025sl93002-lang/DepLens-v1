@@ -13,6 +13,7 @@ from deplens.report import (
     render_cyclonedx,
     render_json,
     render_markdown,
+    render_sarif,
     render_spdx,
 )
 
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/api/scans", tags=["reports"])
 @router.get("/{scan_id}/report")
 def export_report(
     scan_id: int,
-    format: str = Query("markdown", pattern="^(markdown|json|csv|cyclonedx|spdx)$"),
+    format: str = Query("markdown", pattern="^(markdown|json|csv|cyclonedx|spdx|sarif)$"),
     db: Database = Depends(db_dep),
 ):
     try:
@@ -52,6 +53,14 @@ def export_report(
             media_type="application/spdx+json",
             headers={
                 "Content-Disposition": f'attachment; filename="deplens-scan-{scan_id}.spdx.json"'
+            },
+        )
+    if format == "sarif":
+        return PlainTextResponse(
+            render_sarif(data),
+            media_type="application/sarif+json",
+            headers={
+                "Content-Disposition": f'attachment; filename="deplens-scan-{scan_id}.sarif"'
             },
         )
     return PlainTextResponse(render_markdown(data), media_type="text/markdown")

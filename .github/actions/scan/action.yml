@@ -1,0 +1,75 @@
+name: "DepLens dependency scan"
+description: "Scan a project's dependencies for vulnerabilities, outdated packages and license issues; emit SARIF for GitHub code scanning and optionally fail the build."
+author: "DepLens"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  path:
+    description: "Path to the project to scan (a folder containing package.json)."
+    required: false
+    default: "."
+  fail-on:
+    description: "Fail the build if a vulnerability at or above this severity is found: none | low | moderate | high | critical."
+    required: false
+    default: "none"
+  offline:
+    description: "Skip registry/OSV network calls (lockfile-only analysis)."
+    required: false
+    default: "false"
+  sarif-file:
+    description: "Path to write the SARIF 2.1.0 report to."
+    required: false
+    default: "deplens.sarif"
+  upload-sarif:
+    description: "Upload the SARIF report to GitHub code scanning (needs 'security-events: write')."
+    required: false
+    default: "true"
+  python-version:
+    description: "Python version used to run DepLens."
+    required: false
+    default: "3.12"
+
+outputs:
+  sarif-file:
+    description: "Path to the generated SARIF report."
+    value: ${{ inputs.sarif-file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install DepLens
+      shell: bash
+      run: pip install -r "${{ github.action_path }}/../../../backend/requirements.txt"
+
+    - name: Run DepLens scan
+      id: scan
+      shell: bash
+      env:
+        DEPLENS_BACKEND: ${{ github.action_path }}/../../../backend
+      run: |
+        set -uo pipefail
+        OFFLINE=""
+        if [ "${{ inputs.offline }}" = "true" ]; then OFFLINE="--offline"; fi
+        PYTHONPATH="$DEPLENS_BACKEND" python -m deplens scan "${{ inputs.path }}" \
+          $OFFLINE --sarif --fail-on "${{ inputs.fail-on }}" \
+          > "${{ inputs.sarif-file }}" 2> deplens-summary.txt
+        code=$?
+        {
+          echo "### DepLens dependency scan"
+          echo ""
+          sed 's/^/- /' deplens-summary.txt
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit $code
+
+    - name: Upload SARIF to code scanning
+      if: ${{ always() && inputs.upload-sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}

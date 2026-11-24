@@ -17,7 +17,7 @@ import json as _json
 import re
 from typing import Dict, List, Optional, Tuple
 
-from deplens.parsers.lockfile import LockEdge, Lockfile, LockPackage, ROOT_ID
+from deplens.parsers.lockfile import ROOT_ID, LockEdge, Lockfile, LockPackage
 
 try:
     import tomllib  # Python 3.11+
@@ -110,7 +110,8 @@ def parse_pyproject_toml(text: str) -> List[Tuple[str, str]]:
             deps.append(_parse_pep508(dep))
 
     # [tool.poetry.dependencies] — {name: spec_or_dict}; skip "python"
-    for name, spec in ((data.get("tool") or {}).get("poetry") or {}).get("dependencies", {}).items():
+    poetry_deps = ((data.get("tool") or {}).get("poetry") or {}).get("dependencies", {})
+    for name, spec in poetry_deps.items():
         if name.lower() == "python":
             continue
         if isinstance(spec, str):

@@ -18,6 +18,7 @@ from deplens.analyzers import health, licenses, maintenance, usage, versions
 from deplens.db import Database
 from deplens.parsers import parse_lockfile_text, parse_manifest_text
 from deplens.parsers.lockfile import ROOT_ID
+from deplens.parsers.maven import build_maven_lockfile, get_pom_root_info, parse_pom_xml
 from deplens.parsers.pypi import (
     build_pypi_lockfile,
     parse_pipfile,
@@ -26,7 +27,6 @@ from deplens.parsers.pypi import (
     parse_pyproject_toml,
     parse_requirements_txt,
 )
-from deplens.parsers.maven import build_maven_lockfile, get_pom_root_info, parse_pom_xml
 from deplens.parsers.workspace import get_workspaces, workspace_name_for
 from deplens.services.graph import build_graph
 from deplens.services.osv import SEVERITY_ORDER, OSVClient

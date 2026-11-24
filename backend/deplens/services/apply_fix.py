@@ -157,7 +157,9 @@ def _fix_requirements_txt(old: str, upgrades: dict) -> tuple[str, list[FixChange
 
         new_spec = f"=={target}"
         new_line = f"{leading}{raw_name}{extras or ''}{new_spec}{rest or ''}\n"
-        changes.append(FixChange(raw_name, "dependency", "requirements.txt", spec.strip() or None, new_spec))
+        changes.append(
+            FixChange(raw_name, "dependency", "requirements.txt", spec.strip() or None, new_spec)
+        )
         new_lines.append(new_line)
 
     return "".join(new_lines), changes
@@ -202,7 +204,9 @@ def _fix_pyproject_toml(old: str, upgrades: dict) -> tuple[str, list[FixChange]]
             if target:
                 new_spec = f">={target}"
                 new_line = f'{lead}{name}{extras or ""}{new_spec}"{tail}\n'
-                changes.append(FixChange(name, "dependency", "pyproject.toml", spec.strip(), new_spec))
+                changes.append(
+                    FixChange(name, "dependency", "pyproject.toml", spec.strip(), new_spec)
+                )
                 new_lines.append(new_line)
                 matched = True
         elif toml_assign:
@@ -212,7 +216,9 @@ def _fix_pyproject_toml(old: str, upgrades: dict) -> tuple[str, list[FixChange]]
             if target:
                 new_spec = f">={target}"
                 new_line = f'{lead}{name}{eq}"{new_spec}"{tail}\n'
-                changes.append(FixChange(name, "dependency", "pyproject.toml", spec.strip(), new_spec))
+                changes.append(
+                    FixChange(name, "dependency", "pyproject.toml", spec.strip(), new_spec)
+                )
                 new_lines.append(new_line)
                 matched = True
 
@@ -263,11 +269,15 @@ def compute_fix(db: Database, scan_id: int, packages: Optional[List[str]] = None
     if ecosystem == "pypi":
         return _compute_fix_pypi(db, scan_id, root, packages)
     if ecosystem == "maven":
-        raise ApplyError("Automatic fix is not yet supported for Maven projects. Update pom.xml manually.")
+        raise ApplyError(
+            "Automatic fix is not yet supported for Maven projects. Update pom.xml manually."
+        )
     return _compute_fix_npm(db, scan_id, root, packages)
 
 
-def _compute_fix_npm(db: Database, scan_id: int, root: Path, packages: Optional[List[str]]) -> FixEdit:
+def _compute_fix_npm(
+    db: Database, scan_id: int, root: Path, packages: Optional[List[str]]
+) -> FixEdit:
     manifest = root / "package.json"
     if not manifest.is_file() or not is_within(root, manifest):
         raise ApplyError("package.json not found in the project directory")
@@ -341,7 +351,9 @@ def _compute_fix_npm(db: Database, scan_id: int, root: Path, packages: Optional[
     return edit
 
 
-def _compute_fix_pypi(db: Database, scan_id: int, root: Path, packages: Optional[List[str]]) -> FixEdit:
+def _compute_fix_pypi(
+    db: Database, scan_id: int, root: Path, packages: Optional[List[str]]
+) -> FixEdit:
     manifest = _pypi_manifest_path(root)
     old_content = manifest.read_text(encoding="utf-8")
 

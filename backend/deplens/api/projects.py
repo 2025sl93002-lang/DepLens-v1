@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from deplens.api.deps import db_dep
 from deplens.db import Database
-from deplens.scanner import ScanError, auto_scan, run_scan
+from deplens.scanner import ScanError, auto_scan
 from deplens.services.safety import PathSafetyError
 
 router = APIRouter(prefix="/api", tags=["projects"])

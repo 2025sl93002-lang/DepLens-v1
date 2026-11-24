@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from deplens.parsers.lockfile import LockEdge, Lockfile, LockPackage, ROOT_ID
+from deplens.parsers.lockfile import ROOT_ID, LockEdge, Lockfile, LockPackage
 
 
 def _ns_aware_find(el: ET.Element, tag: str) -> Optional[ET.Element]:

@@ -296,7 +296,9 @@ class MavenRegistryClient:
 
         docs = (doc.get("response") or {}).get("docs") or []
         if not docs:
-            return RegistryInfo(name=name, available=False, error="package not found on Maven Central")
+            return RegistryInfo(
+                name=name, available=False, error="package not found on Maven Central"
+            )
 
         latest_doc = docs[0]
         latest = latest_doc.get("latestVersion") or latest_doc.get("v")

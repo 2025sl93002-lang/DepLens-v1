@@ -77,7 +77,9 @@ def _normalize_severity(vuln: dict) -> str:
     return "unknown"
 
 
-def _extract_fixed_and_ranges(vuln: dict, pkg_name: str, installed: Optional[str] = None):
+def _extract_fixed_and_ranges(
+    vuln: dict, pkg_name: str, installed: Optional[str] = None, ecosystem: str = "npm"
+):
     """Extract affected ranges and the fix relevant to the installed version.
 
     OSV advisories often cover several release lines (e.g. a 0.x fix and a 1.x
@@ -92,7 +94,7 @@ def _extract_fixed_and_ranges(vuln: dict, pkg_name: str, installed: Optional[str
     ranges: List[str] = []
     for affected in vuln.get("affected") or []:
         pkg = affected.get("package") or {}
-        if pkg.get("ecosystem") != "npm" or pkg.get("name") != pkg_name:
+        if pkg.get("ecosystem") != ecosystem or pkg.get("name") != pkg_name:
             continue
         for rng in affected.get("ranges") or []:
             introduced = None
@@ -137,16 +139,17 @@ class OSVClient:
             await self._client.aclose()
 
     async def query_packages(
-        self, packages: List[tuple]
+        self, packages: List[tuple], ecosystem: str = "npm"
     ) -> Dict[str, List[Vulnerability]]:
         """Return {``name@version``: [Vulnerability, ...]} for the given packages.
 
         ``packages`` is a list of ``(name, version)`` tuples.
+        ``ecosystem`` must match OSV's ecosystem names (e.g. ``"npm"``, ``"PyPI"``).
         """
         if not packages:
             return {}
         queries = [
-            {"package": {"ecosystem": "npm", "name": n}, "version": v} for n, v in packages
+            {"package": {"ecosystem": ecosystem, "name": n}, "version": v} for n, v in packages
         ]
         resp = await self._client.post(f"{OSV_API}/v1/querybatch", json={"queries": queries})
         resp.raise_for_status()
@@ -168,7 +171,7 @@ class OSVClient:
             if raw is None:
                 continue
             for name, version in pkgs:
-                fixed, ranges = _extract_fixed_and_ranges(raw, name, version)
+                fixed, ranges = _extract_fixed_and_ranges(raw, name, version, ecosystem)
                 refs = [r.get("url") for r in (raw.get("references") or []) if r.get("url")]
                 vuln = Vulnerability(
                     id=vid,

@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 DEFAULT_DB_PATH = os.environ.get(
     "DEPLENS_DB",
@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS packages (
     maintenance_status TEXT,
     max_severity TEXT,
     vuln_count INTEGER DEFAULT 0,
+    workspace_name TEXT,
     data_json TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_packages_scan ON packages(scan_id);
@@ -159,6 +160,22 @@ class Database:
                     "INSERT INTO meta(key, value) VALUES ('schema_version', ?)",
                     (str(SCHEMA_VERSION),),
                 )
+                self._conn.commit()
+            else:
+                stored = int(row["value"])
+                if stored < SCHEMA_VERSION:
+                    self._migrate(stored)
+
+    def _migrate(self, from_version: int):
+        """Run schema migrations from ``from_version`` up to SCHEMA_VERSION."""
+        if from_version < 2:
+            # v1 → v2: add workspace_name column to packages
+            cols = {r[1] for r in self._conn.execute("PRAGMA table_info(packages)")}
+            if "workspace_name" not in cols:
+                self._conn.execute("ALTER TABLE packages ADD COLUMN workspace_name TEXT")
+            self._conn.execute(
+                "UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
+            )
             self._conn.commit()
 
     def close(self):

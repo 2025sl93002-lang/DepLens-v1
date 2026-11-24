@@ -37,7 +37,9 @@ export function Projects() {
 
       {projects.length === 0 ? (
         <EmptyState icon={<FolderGit2 />} title="No projects yet">
-          Scan a local npm project (a folder with a <code>package.json</code>) to get started. The
+          Scan a local project (npm/yarn/pnpm with <code>package.json</code>, Python with{" "}
+          <code>requirements.txt</code> / <code>pyproject.toml</code>, or Maven with{" "}
+          <code>pom.xml</code>) to get started. The
           bundled demo fixture is pre-filled in the scan dialog.
         </EmptyState>
       ) : (

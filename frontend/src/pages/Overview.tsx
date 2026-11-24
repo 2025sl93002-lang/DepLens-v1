@@ -21,6 +21,7 @@ import { formatDate, titleCase } from "../lib/format";
 import { useState } from "react";
 import { PackageDrawer } from "../components/PackageDrawer";
 import { ScanModal } from "../components/ScanModal";
+import type { WorkspaceSummary } from "../api/types";
 
 export function Overview() {
   const { currentScanId, setCurrentProject, setCurrentScan, refreshProjects } = useApp();
@@ -147,6 +148,10 @@ export function Overview() {
 
       <RecentFindings scanId={currentScanId} onOpen={setPkg} />
 
+      {s.workspaces && s.workspaces.length > 0 && s.workspace_summary && (
+        <WorkspacesCard workspaces={s.workspaces} summary={s.workspace_summary} />
+      )}
+
       {pkg && <PackageDrawer scanId={currentScanId} name={pkg} onClose={() => setPkg(null)} />}
     </>
   );
@@ -250,8 +255,79 @@ function RecentFindings({ scanId, onOpen }: { scanId: number; onOpen: (p: string
   );
 }
 
-function OverviewSkeleton() {
+function WorkspacesCard({
+  workspaces,
+  summary,
+}: {
+  workspaces: string[];
+  summary: Record<string, WorkspaceSummary>;
+}) {
   return (
+    <Card>
+      <CardHead
+        title="Workspace packages"
+        subtitle={`${workspaces.length} workspace${workspaces.length !== 1 ? "s" : ""} in this monorepo · ${Object.values(summary).reduce((s, w) => s + w.direct, 0)} direct deps total`}
+      />
+      <div style={{ padding: "var(--sp-2) var(--sp-3)" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: "var(--sp-3)",
+            padding: "var(--sp-2) 0",
+          }}
+        >
+          {workspaces.map((ws) => {
+            const info = summary[ws] ?? { direct: 0, total: 0, outdated: 0, vulnerable_packages: 0 };
+            return (
+              <div
+                key={ws}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  padding: "var(--sp-3)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--sp-2)",
+                }}
+              >
+                <span
+                  className="mono"
+                  style={{ fontWeight: 600, fontSize: "var(--text-sm)", wordBreak: "break-all" }}
+                  title={ws}
+                >
+                  {ws}
+                </span>
+                <div className="row" style={{ gap: "var(--sp-3)", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "var(--text-xs)" }} className="muted">
+                    {info.direct} direct
+                  </span>
+                  {info.outdated > 0 && (
+                    <Badge tone="warn">
+                      {info.outdated} outdated
+                    </Badge>
+                  )}
+                  {info.vulnerable_packages > 0 && (
+                    <Badge tone="danger">
+                      {info.vulnerable_packages} vulnerable
+                    </Badge>
+                  )}
+                  {info.outdated === 0 && info.vulnerable_packages === 0 && (
+                    <Badge tone="ok">
+                      clean
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function OverviewSkeleton() {  return (
     <>
       <Skeleton h={40} w={320} />
       <div className="grid-3" style={{ gridTemplateColumns: "340px 1fr" }}>
